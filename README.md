@@ -4,15 +4,14 @@ I'm trying to reproduce an Android printer app’s BLE print protocol from captu
 2) implementing reliable ESP32 code that sends the frames (wait-for-notify handshake) so prints don’t stop halfway.
 ## Problem Description
 I have a Bluetooth LE thermal printer (firmware advertises service 0xABF0, write char 0xABF1, notify char 0xABF2). The official Android app successfully prints images. I captured the phone to printer BLE traffic (using hci_snoop_hci.log and Wireshark). The app splits each print job into 4 GATT Write frames. Each frame starts with 0x66 and contains a header plus compressed/raster payload. After each Write the printer sends a notification (on ABF2) which I believe is the ACK/ready-for-next-chunk signal.
-\
+
 When I replay the frames from an ESP32 (NimBLE), I found:
 1) If I send frames too fast the printer prints only the first chunk and then stops.
 2) If I send one frame then wait for the ABF2 notification, then send the next, printing completes successfully.
-\
 I do not yet know the exact compression format the app uses. Tried PackBits / simple RLE and raw 1bpp tests — no match.
-\
+
 I want help with either:
-\
+
 1) Identifying the exact compression/encoding algorithm (so I can implement it on ESP32), or
 2) Implementing a robust ESP32 client that reliably replays the exact captured frames in the correct order (waiting for notifications) and/or a compressor that matches the app.
 ## Environment / hardware
@@ -56,9 +55,9 @@ Example frame1 (taken from dump):
 ```
 3) Observations
 The second byte after 0x66 (e.g. 0x35 or 0x44) varies, seems to be the compressed payload length.
-\
+
 The sequence ... 0155 0003 / 0155 0002 / 0155 0001 / 0134 0000 appears in logs; I read this as a frame counter or stage marker.
-\
+
 Printer sends notifications on ABF2 after receiving frames. The notification payloads look like:
 ```hex
 23 23 01 01 66 25 00 10 00 52 18 0F 00 00 ...
@@ -72,9 +71,9 @@ I tried running simple decoders:
 
 4) Working ESP32 behavior
 Using NimBLE I can connect, discover services & characteristics, subscribe to ABF2 notifications.
-\
+
 I can find ABF1 (write) and ABF2 (notify).
-\
+
 Sending frame1 then waiting for ABF2 notify, then frame2 etc. works (prints successfully). But I want to generate frames on-the-fly from images rather than replay hex dumps.
 
 ## What I need from the community
@@ -86,7 +85,7 @@ If you have a known implementation (Java or C/C++) that produces the exact byte 
 2. ESP32 (NimBLE) implementation help
 
 Example code that reliably writes frames to the printer char ABF1 and waits for the ABF2 notification before sending the next chunk. (I have code but would appreciate robust production-ready code with proper locking/MTU handling.)
-\
+
 If you can adapt the compressor into a compact C++ function suitable for ESP32 (PlatformIO, Arduino), that would be ideal.
 
 3. Binary analysis hints
