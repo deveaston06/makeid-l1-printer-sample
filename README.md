@@ -91,34 +91,3 @@ If you can adapt the compressor into a compact C++ function suitable for ESP32 (
 3. Binary analysis hints
 
 If you can help inspect the Android app (I can pull APK) for the encoding routine, I can provide the APK. If you’ve done APK static analysis and can point to likely class/method names, that would save time.
-
-## Minimal reproducible code
-NodeMCU-32S (ESP32) — connect, subscribe, send one frame then wait
-```cpp
-NimBLERemoteCharacteristic* pWrite = pService->getCharacteristic("ABF1");
-NimBLERemoteCharacteristic* pNotify = pService->getCharacteristic("ABF2");
-
-volatile bool gotNotify = false;
-std::vector<uint8_t> lastNotify;
-
-void notifyCallback(NimBLERemoteCharacteristic* chr, uint8_t* data, size_t len, bool isNotify) {
-  lastNotify.assign(data, data + len);
-  gotNotify = true;
-}
-
-bool sendFrameWaitAck(NimBLERemoteCharacteristic* writeChar,
-                      const uint8_t* buf, size_t len,
-                      NimBLERemoteCharacteristic* notifyChar,
-                      uint32_t timeoutMs = 2000) {
-  gotNotify = false;
-  bool ok = writeChar->writeValue((uint8_t*)buf, len, false); // Write Command (no response)
-  if (!ok) return false;
-  uint32_t start = millis();
-  while (!gotNotify && millis() - start < timeoutMs) delay(5);
-  return gotNotify;
-}
-```
-## Specific questions (answer these if you can)
-1. Is the 0x66 prefix a known vendor packet wrapper for bitmap frames for any printer SDKs? (Which SDK / models use it?)
-2. Which compression method best explains why a 44mm image has more bytes than a 45mm image? (I think RLE + 1bpp packing, but want exact mechanism.)
-3. If you know the encoder code in Android (Java) that does this, can you point to the exact function/class? (APK is in the Github repo)
