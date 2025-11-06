@@ -1,7 +1,6 @@
 # MakeID L1 Printer Sample Log
-I'm trying to reproduce an Android printer app’s BLE print protocol from captured hci_snoop logs and want help
-1) identifying the bitmap compression/encoding and
-2) implementing reliable ESP32 code that sends the frames (wait-for-notify handshake) so prints don’t stop halfway.
+I'm trying to reproduce an Android printer app’s BLE print protocol from captured hci_snoop logs and want help with identifying the bitmap compression/encoding. 
+
 ## Problem Description
 I have a Bluetooth LE thermal printer (firmware advertises service 0xABF0, write char 0xABF1, notify char 0xABF2). The official Android app successfully prints images. I captured the phone to printer BLE traffic (using hci_snoop_hci.log and Wireshark). The app splits each print job into 4 GATT Write frames. Each frame starts with 0x66 and contains a header plus compressed/raster payload. After each Write the printer sends a notification (on ABF2) which I believe is the ACK/ready-for-next-chunk signal.
 
@@ -22,8 +21,13 @@ I want help with either:
 * Serial monitor: 115200
 ## What I’ve captured & tried
 1) Wireshark / hci_snoop captures
-I captured two print jobs (same image but different mm heights): hci_snoop1.log and hci_snoop2.log. Each job contains 4 main Write Commands to the printer (handle 0x002a), with these high-level patterns (each frame has the same format):
-- always starts with 66 (magic number),
+
+I captured five print jobs by using the original APK MakeID-Life on Google Play that sends bitmap to my terminal printer (same image but different mm heights): btsnoop_hci1.log, btsnoop_hci2.log, btsnoop_hci3.log, btsnoop_hci_all_black.log, btsnoop_hci_blank_white.log.
+
+I have pulled the bitmap png files from my Samsung A50 phone from the app data directory and uploaded it to the pictures directory.
+
+Each job contains 4 main Write Commands to the printer (handle 0x002a), with these high-level patterns (each frame has the same format):
+- always starts with 0x66 (magic number),
 - 35 00 is how many bytes this frame contains (first low byte, then high byte, 53 is the frame length in this case)
 - 1b2f030100010001 could be the printer id
 - 3301 is the printing job id
@@ -31,7 +35,7 @@ I captured two print jobs (same image but different mm heights): hci_snoop1.log 
 - 0003 is how many parts of 4 part frames are still left after this (this case is 3 frames left)
 - 000200000000003d0300ff3fff280000352e000038f30803000020000000892c00 is the bitmap payload (unknown encoding and compression algo)
 - 110000 signifies the end the part frame and start of checkNum
-- 63 at the end is the checkNum (and function below in python is the algorithm).
+- 63 at the end is the checkNum (and function below in python is the algorithm reconstructed from the reference APK jadx dump).
 ```python
 def getCheckNum(bArr):
     """
@@ -75,19 +79,3 @@ Using NimBLE I can connect, discover services & characteristics, subscribe to AB
 I can find ABF1 (write) and ABF2 (notify).
 
 Sending frame1 then waiting for ABF2 notify, then frame2 etc. works (prints successfully). But I want to generate frames on-the-fly from images rather than replay hex dumps.
-
-## What I need from the community
-
-1. Compression identification help
-Which compression algorithm does this look like? (RLE variant, PackBits, PackBits+bitpack, LZ? specifics please)
-If you have a known implementation (Java or C/C++) that produces the exact byte patterns for 1bpp thermal images that match the bitstream format starting with 0x66 ..., please share or point to it.
-
-2. ESP32 (NimBLE) implementation help
-
-Example code that reliably writes frames to the printer char ABF1 and waits for the ABF2 notification before sending the next chunk. (I have code but would appreciate robust production-ready code with proper locking/MTU handling.)
-
-If you can adapt the compressor into a compact C++ function suitable for ESP32 (PlatformIO, Arduino), that would be ideal.
-
-3. Binary analysis hints
-
-If you can help inspect the Android app (I can pull APK) for the encoding routine, I can provide the APK. If you’ve done APK static analysis and can point to likely class/method names, that would save time.
