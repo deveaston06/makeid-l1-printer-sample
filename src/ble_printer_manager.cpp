@@ -1,19 +1,5 @@
 #include "ble_printer_manager.h"
 
-// --- Add implementations for all the functions declared in
-// ble_printer_manager.h ---
-
-// Example:
-// void BLEPrinterManager::beginBLESniffer() {
-//   // Your implementation code here
-// }
-
-// You must provide the implementation for every function and static member
-// that is causing an "undefined reference" error. For example:
-//
-// bool BLEPrinterManager::ackReceived = false;
-// bool BLEPrinterManager::printingInProgress = false;
-// // ... and so on for all other variables and functions.
 const std::vector<uint8_t> frameheader = {0x66, 0x35, 0x00, 0x1b, 0x2f, 0x03,
                                           0x01, 0x00, 0x01, 0x00, 0x01, 0x33,
                                           0x01, 0x55, 0x00, 0x03};
@@ -24,7 +10,6 @@ NimBLEClient *pClient = nullptr;
 NimBLERemoteCharacteristic *pWriteChar;
 NimBLERemoteCharacteristic *pNotifyChar;
 volatile bool ackReceived = false;
-volatile bool connection_started = false;
 std::vector<uint8_t> lastAck; // stores last notification bytes
 int currentFrame = 0;
 bool printingInProgress = false;
@@ -58,7 +43,8 @@ void setExampleBitmapFrame() {
             0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0xaa};
 }
 
-void setBitmapFrame(std::vector<uint8_t> framecontent) {
+void setBitmapFrame(
+    std::vector<uint8_t> framecontent) { // TODO: need help with this
   frame1 = frameheader;
   const std::vector<uint8_t> frame1content = {0x00, 0x02, 0x00};
   std::copy(std::begin(frameheader), std::end(frameheader), std::begin(frame1));
@@ -111,59 +97,6 @@ void notifyCallback(NimBLERemoteCharacteristic *chr, uint8_t *data, size_t len,
   }
 }
 
-// send a single chunk and wait for an ACK notification (optional)
-bool sendChunkWaitAck(const uint8_t *data, size_t len,
-                      uint32_t timeoutMs = 1000) {
-  if (!pWriteChar) {
-    Serial.println("Write characteristic missing!");
-    return false;
-  }
-  // clear ack flag
-  ackReceived = false;
-  lastAck.clear();
-
-  // writeWithoutResponse (false -> no response)
-  bool wrote = pWriteChar->writeValue((uint8_t *)data, len, false);
-  if (!wrote) {
-    Serial.println("writeValue (no-response) returned false.");
-    return false;
-  }
-  // Wait for ackReceived to become true (from notifyCallback)
-  uint32_t start = millis();
-  while (!ackReceived && (millis() - start) < timeoutMs) {
-    delay(5);
-  }
-  if (!ackReceived) {
-    Serial.println("ACK timeout");
-    return false;
-  }
-  // Optionally inspect lastAck bytes for success code
-  Serial.print("ACK bytes: ");
-  for (auto &b : lastAck)
-    Serial.printf("%02X ", b);
-  Serial.println();
-  return true;
-}
-
-// send big buffer chunked according to MTU - 3 (safe)
-bool sendLargeBufferWithAck(const uint8_t *buf, size_t buflen) {
-  // compute chunk size from MTU; NimBLE client has getMTU()
-  uint16_t mtu = pClient->getMTU(); // negotiated MTU
-  size_t chunk = (mtu > 3) ? (mtu - 3) : 20;
-  Serial.printf("Using chunk size: %u (MTU %u)\n", (unsigned)chunk,
-                (unsigned)mtu);
-
-  for (size_t offset = 0; offset < buflen; offset += chunk) {
-    size_t thisLen = std::min(chunk, buflen - offset);
-    if (!sendChunkWaitAck(buf + offset, thisLen, 1000)) {
-      Serial.printf("Chunk at offset %u failed\n", (unsigned)offset);
-      return false;
-    }
-    delay(5); // small spacing — tweak if needed
-  }
-  return true;
-}
-
 void startPrintJob() {
   if (!pWriteChar) {
     Serial.println("No write characteristic available!");
@@ -175,58 +108,30 @@ void startPrintJob() {
   pWriteChar->writeValue(&frame1[0], frame1.size(), false);
 }
 
-void PrinterAdvertisedDeviceCallbacks::onResult(
-    NimBLEAdvertisedDevice *advertisedDevice) {
-  Serial.print("Found device: ");
-  Serial.println(advertisedDevice->toString().c_str());
-
-  if (PRINTER_MAC[0] == '\0' ||
-      advertisedDevice->getAddress().toString() == std::string(PRINTER_MAC)) {
-    if (PRINTER_MAC[0] == '\0') {
-      Serial.println("No MAC address specified. Connecting to the first "
-                     "printer found.");
-    } else {
-      Serial.println("Found target printer.");
-    }
-    NimBLEDevice::getScan()->stop();
-    connection_started = true;
-    pClient->connect(advertisedDevice);
-  }
-}
-
-void beginBLESniffer() {
-  Serial.println("Starting BLE sniffer...");
-  NimBLEDevice::init("ESP32-BLE-Sniffer");
-
-  // Create client
-  pClient = NimBLEDevice::createClient();
-
+void startScanner() {
   // Scan
   NimBLEScan *pScan = NimBLEDevice::getScan();
-  pScan->setScanCallbacks(new PrinterAdvertisedDeviceCallbacks(pClient));
+  pScan->setScanCallbacks(new PrinterAdvertisedDeviceCallbacks());
   pScan->setInterval(45);
   pScan->setWindow(15);
   pScan->setActiveScan(true);
+  pScan->start(5, false);
 
-  connection_started = false; // reset flag
-
-  if (PRINTER_MAC[0] == '\0') {
-    Serial.println("Scanning for devices for 10 seconds... (no MAC set)");
-    pScan->start(10, false);
-  } else {
-    Serial.println("Scanning for specific device for 5 seconds...");
-    pScan->start(5, false);
-  }
-
-  if (!connection_started) {
-    Serial.println("No suitable printer found.");
-    Serial.println("or just put your printer MAC address in credentials.h");
+  if (PRINTER_MAC[0] == '\0')
     return;
-  }
+}
 
-  // Wait for connection
-  while (!pClient->isConnected()) {
-    delay(100);
+void startConnectionFindServices() {
+  // Connect
+  NimBLEAddress addr(std::string(PRINTER_MAC), BLE_ADDR_PUBLIC);
+  pClient = NimBLEDevice::createClient();
+
+  Serial.print("Connecting to printer: ");
+  Serial.println(addr.toString().c_str());
+
+  if (!pClient->connect(addr)) {
+    Serial.println("Failed to connect.");
+    return;
   }
   Serial.println("Connected!");
 
@@ -266,4 +171,13 @@ void beginBLESniffer() {
       Serial.println("Subscribe to ABF2 failed.");
     }
   }
+}
+
+void beginBLESniffer() {
+  Serial.println("Starting BLE sniffer...");
+  NimBLEDevice::init("ESP32-BLE-Sniffer");
+
+  startScanner();
+  if (PRINTER_MAC[0] != '\0')
+    startConnectionFindServices();
 }

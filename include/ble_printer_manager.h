@@ -6,12 +6,16 @@
 #endif // !MAC_ADDRESS
 
 class PrinterAdvertisedDeviceCallbacks : public NimBLEScanCallbacks {
-public:
-  PrinterAdvertisedDeviceCallbacks(NimBLEClient *client) { pClient = client; }
+  void onResult(NimBLEAdvertisedDevice *advertisedDevice) {
+    Serial.print("Found device: ");
+    Serial.println(advertisedDevice->toString().c_str());
 
-private:
-  NimBLEClient *pClient;
-  void onResult(NimBLEAdvertisedDevice *advertisedDevice);
+    if (PRINTER_MAC[0] != '\0' &&
+        advertisedDevice->getAddress().toString() == std::string(PRINTER_MAC)) {
+      Serial.println("Found target printer, stopping scan...");
+      NimBLEDevice::getScan()->stop();
+    }
+  }
 };
 
 void beginBLESniffer();
