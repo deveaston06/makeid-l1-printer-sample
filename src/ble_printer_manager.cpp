@@ -36,7 +36,7 @@ uint8_t calculateFrameChecksum(const uint8_t *data, size_t len) {
 // Create a single frame from compressed data chunk
 std::vector<uint8_t> createFrame(const uint8_t *compressedData, size_t offset,
                                  size_t chunkSize, uint16_t jobId,
-                                 uint16_t framesRemaining, bool isFinal) {
+                                 uint8_t framesRemaining, bool isFinal) {
   std::vector<uint8_t> frame;
 
   // Magic number
@@ -60,18 +60,13 @@ std::vector<uint8_t> createFrame(const uint8_t *compressedData, size_t offset,
   frame.push_back(isFinal ? 0x2C : 0x55);
 
   // Frames remaining (little endian)
-  frame.push_back((framesRemaining >> 8) & 0xFF);
   frame.push_back(framesRemaining & 0xFF);
+  frame.push_back((framesRemaining >> 8) & 0xFF);
 
   // Compressed payload
   for (size_t i = 0; i < chunkSize; i++) {
     frame.push_back(compressedData[offset + i]);
   }
-
-  // End marker
-  frame.push_back(0x11);
-  frame.push_back(0x00);
-  frame.push_back(0x00);
 
   // Checksum
   uint8_t checksum = calculateFrameChecksum(frame.data(), frame.size() + 1);
@@ -97,7 +92,7 @@ bool prepareFramesFromBitmap(const Bitmap &userBitmap) {
 
   // Compress with LZO
   Serial.println("Compressing with LZO...");
-  lzo_uint compressedLen = 0;
+  lzo_uint compressedLen;
   int result = lzo1x_1_compress(printerFormatBuffer.data, BITMAP_SIZE,
                                 compressed, &compressedLen, lzoWorkMem);
 
@@ -106,53 +101,31 @@ bool prepareFramesFromBitmap(const Bitmap &userBitmap) {
     return false;
   }
 
-  Serial.printf("Compressed %lu → %lu bytes (%.1f%%)\n",
-                (unsigned long)BITMAP_SIZE, (unsigned long)compressedLen,
-                (compressedLen * 100.0) / BITMAP_SIZE);
+  Serial.printf("Compressed %d → %d bytes (%.1f%%)\n", BITMAP_SIZE,
+                (int)compressedLen, (compressedLen * 100.0) / BITMAP_SIZE);
 
-  // ========================================================================
-  // Always split into 4 frames equally (last frame gets leftover bytes)
-  // ========================================================================
-  const int NUM_FRAMES = 4;
-  size_t baseChunkSize = compressedLen / NUM_FRAMES;
-  size_t remainder = compressedLen % NUM_FRAMES;
   size_t offset = 0;
 
-  for (int i = 0; i < NUM_FRAMES; i++) {
-    size_t chunkSize = baseChunkSize;
-
-    // Distribute remainder bytes evenly among first few chunks
-    if (i < remainder) {
-      chunkSize++;
-    }
-
-    // If compressedLen < NUM_FRAMES (edge case), assign 0-size safely
-    if (offset >= compressedLen)
-      chunkSize = 0;
-    else if (offset + chunkSize > compressedLen)
-      chunkSize = compressedLen - offset;
-
-    bool isFinal = (i == NUM_FRAMES - 1);
-    uint16_t framesRemaining = NUM_FRAMES - 1 - i;
+  while (offset < compressedLen) {
+    size_t remaining = compressedLen - offset;
+    size_t chunkSize =
+        (remaining > MAX_FRAME_PAYLOAD) ? MAX_FRAME_PAYLOAD : remaining;
+    bool isFinal = (offset + chunkSize >= compressedLen);
+    uint8_t framesRemaining =
+        isFinal ? 0 : ((remaining - chunkSize) / MAX_FRAME_PAYLOAD);
 
     std::vector<uint8_t> frame = createFrame(
         compressed, offset, chunkSize, currentJobId, framesRemaining, isFinal);
 
     printFrames.push_back(frame);
-
-    Serial.printf("Frame %d/%d: payload=%d bytes, remaining=%d\n", i + 1,
-                  NUM_FRAMES, (int)chunkSize, framesRemaining);
+    Serial.printf("Frame %d: %d bytes payload, %d frames remaining\n",
+                  printFrames.size(), (int)chunkSize, framesRemaining);
 
     offset += chunkSize;
   }
 
-  // Verify total coverage
-  Serial.printf("Total frames: %d, total payload bytes used: %u / %u\n",
-                (int)printFrames.size(), (unsigned int)offset,
-                (unsigned int)compressedLen);
-
-  // Increment Job ID for next print
-  currentJobId++;
+  Serial.printf("Total frames prepared: %d\n", printFrames.size());
+  currentJobId++; // Increment for next job
 
   return true;
 }
@@ -161,32 +134,29 @@ bool prepareFramesFromBitmap(const Bitmap &userBitmap) {
 void setExampleBitmapFrame() {
   printFrames.clear();
 
-  printFrames.push_back({0x66, 0x35, 0x00, 0x1b, 0x2f, 0x03, 0x01, 0x00, 0x01,
-                         0x00, 0x01, 0x33, 0x01, 0x55, 0x00, 0x03, 0x00, 0x02,
-                         0x00, 0x00, 0x00, 0x00, 0x00, 0x3d, 0x03, 0x00, 0xff,
-                         0x3f, 0xff, 0x28, 0x00, 0x00, 0x35, 0x2e, 0x00, 0x00,
-                         0x38, 0xf3, 0x08, 0x03, 0x00, 0x00, 0x20, 0x00, 0x00,
-                         0x00, 0x89, 0x2c, 0x00, 0x11, 0x00, 0x00, 0x63});
+  // Frame 1 - 33 bytes
+  printFrames.push_back({0x66, 0x21, 0x00, 0x1B, 0x2F, 0x03, 0x01, 0x00, 0x01,
+                         0x00, 0x01, 0x2B, 0x01, 0x55, 0x00, 0x03, 0x03, 0x00,
+                         0x02, 0x00, 0x00, 0x00, 0x00, 0x20, 0xCB, 0x02, 0x00,
+                         0x07, 0xFF, 0x20, 0x0C, 0x01, 0x80});
 
-  printFrames.push_back(
-      {0x66, 0x2f, 0x00, 0x1b, 0x2f, 0x03, 0x01, 0x00, 0x01, 0x00, 0x01, 0x33,
-       0x01, 0x55, 0x00, 0x02, 0x00, 0x02, 0x00, 0x38, 0x00, 0x00, 0x00, 0x80,
-       0x00, 0x02, 0x03, 0x00, 0x00, 0x38, 0x00, 0xc3, 0x00, 0x03, 0x00, 0x00,
-       0x20, 0x00, 0x00, 0x00, 0xc5, 0x2c, 0x00, 0x11, 0x00, 0x00, 0xb1});
+  // Frame 2 - 33 bytes
+  printFrames.push_back({0x66, 0x21, 0x00, 0x1B, 0x2F, 0x03, 0x01, 0x00, 0x01,
+                         0x00, 0x01, 0x2B, 0x01, 0x55, 0x00, 0x02, 0x00, 0xE0,
+                         0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                         0x00, 0x00, 0x00, 0x00, 0x00, 0xA6});
 
-  printFrames.push_back(
-      {0x66, 0x2f, 0x00, 0x1b, 0x2f, 0x03, 0x01, 0x00, 0x01, 0x00, 0x01, 0x33,
-       0x01, 0x55, 0x00, 0x01, 0x00, 0x02, 0x00, 0x38, 0x00, 0x00, 0x00, 0x80,
-       0x00, 0x02, 0x03, 0x00, 0x00, 0x38, 0x00, 0xc3, 0x00, 0x03, 0x00, 0x00,
-       0x20, 0x00, 0x00, 0x00, 0xc5, 0x2c, 0x00, 0x11, 0x00, 0x00, 0xb2});
+  // Frame 3 - 33 bytes
+  printFrames.push_back({0x66, 0x21, 0x00, 0x1B, 0x2F, 0x03, 0x01, 0x00, 0x01,
+                         0x00, 0x01, 0x2B, 0x01, 0x55, 0x00, 0x01, 0x00, 0x00,
+                         0xDE, 0xBC, 0x00, 0x20, 0xBB, 0x2C, 0x44, 0x00, 0x02,
+                         0x00, 0x00, 0x00, 0x00, 0x00, 0xC0});
 
-  printFrames.push_back(
-      {0x66, 0x44, 0x00, 0x1b, 0x2f, 0x03, 0x01, 0x00, 0x01, 0x00, 0x01, 0x33,
-       0x01, 0x34, 0x00, 0x00, 0x00, 0x02, 0x00, 0x38, 0x00, 0x00, 0x00, 0x80,
-       0x00, 0x02, 0x03, 0x00, 0x00, 0x38, 0x00, 0xc3, 0x00, 0x03, 0x00, 0x00,
-       0x20, 0x00, 0x00, 0x08, 0x2f, 0x00, 0xff, 0x3f, 0xff, 0x28, 0x00, 0x00,
-       0x35, 0x2c, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-       0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0xaa});
+  // Frame 4 - 35 bytes
+  printFrames.push_back({0x66, 0x23, 0x00, 0x1B, 0x2F, 0x03, 0x01, 0x00, 0x01,
+                         0x00, 0x01, 0x2B, 0x01, 0x2C, 0x00, 0x00, 0x00, 0x00,
+                         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                         0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0xBE});
 
   Serial.printf("Loaded %d example frames\n", printFrames.size());
 }

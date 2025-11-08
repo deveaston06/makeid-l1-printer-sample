@@ -12,23 +12,11 @@ void setup() {
   if (PRINTER_MAC[0] == '\0')
     return;
 
-  Serial.println("\n=== Creating Custom Bitmap ===");
-  Bitmap image = createEmptyBitmap();
+  setExampleBitmapFrame();
 
-  // Draw border and diagonals
-  drawBorder(image, 5);
-  drawDiagonals(image);
-
-  // Add text
-  drawString(image, "42", 150, 40);
-
-  Serial.println("Bitmap created");
-  Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
-
-  // Print it!
   if (isPrinterConnected()) {
-    Serial.println("\n=== Printing Custom Bitmap ===");
-    if (printBitmap(image)) {
+    Serial.println("\n=== Printing using Python Generated Frames ===");
+    if (startPrintJob()) {
       // Wait for print to complete
       while (isPrinting()) {
         delay(100);
@@ -38,6 +26,36 @@ void setup() {
       Serial.println("Print failed!");
     }
   }
+
+  // -------------------------------------
+  // drawing from scratch programmatically
+  // -------------------------------------
+  // Serial.println("\n=== Creating Custom Bitmap ===");
+  // Bitmap image = createEmptyBitmap();
+  //
+  // // Draw border and diagonals
+  // drawBorder(image, 5);
+  // drawDiagonals(image);
+  //
+  // // Add text
+  // drawString(image, "42", 150, 40);
+  //
+  // Serial.println("Bitmap created");
+  // Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
+  //
+  // // Print it!
+  // if (isPrinterConnected()) {
+  //   Serial.println("\n=== Printing Custom Bitmap ===");
+  //   if (printBitmap(image)) {
+  //     // Wait for print to complete
+  //     while (isPrinting()) {
+  //       delay(100);
+  //     }
+  //     Serial.println("Print complete!");
+  //   } else {
+  //     Serial.println("Print failed!");
+  //   }
+  // }
 }
 
 void loop() { delay(1000); }
