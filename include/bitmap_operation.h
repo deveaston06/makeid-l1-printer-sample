@@ -2,15 +2,6 @@
 #include <helper.h>
 
 // ============================================================================
-// Convert bitmap data into printer formet operations
-// ============================================================================
-
-Bitmap transformToColumnMajor(const Bitmap &bitmap);
-Bitmap transform16BitSwap(const Bitmap &bitmap);
-Bitmap transformInvertBits(const Bitmap &bitmap);
-Bitmap transformToPrinterFormat(const Bitmap &bitmap);
-
-// ============================================================================
 // BITMAP CREATION (Return new bitmap)
 // ============================================================================
 
