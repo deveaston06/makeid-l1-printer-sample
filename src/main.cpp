@@ -9,10 +9,8 @@ void setup() {
   Serial.printf("Free heap at start: %d bytes\n", ESP.getFreeHeap());
 
   beginBLESniffer();
-  if (PRINTER_MAC[0] != '\0') {
-    setExampleBitmapFrame(); // this only replay btsnoop_hci3.log
-    startPrintJob();
-  }
+  if (PRINTER_MAC[0] == '\0')
+    return;
 
   Serial.println("\n=== Creating Custom Bitmap ===");
   Bitmap image = createEmptyBitmap();
