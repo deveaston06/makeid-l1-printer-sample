@@ -51,5 +51,5 @@ bool isInBorder(int x, int y, int thickness);
 bool isOnDiagonal(int x, int y);
 
 // Composition (apply multiple operations in sequence)
-void compose(Bitmap &bitmap, void (*f1)(Bitmap &) = nullptr,
-             void (*f2)(Bitmap &) = nullptr, void (*f3)(Bitmap &) = nullptr);
+void compose(Bitmap &bitmap, void (*f1)(Bitmap &), void (*f2)(Bitmap &),
+             void (*f3)(Bitmap &));

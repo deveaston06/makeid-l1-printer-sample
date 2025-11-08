@@ -1,3 +1,5 @@
+#ifndef HELPER_H
+#define HELPER_H
 #include <cstddef>
 #include <cstdint>
 
@@ -26,3 +28,5 @@ int indexToBit(int idx);
 uint8_t bitMask(int bitPos);
 bool isPixelBlack(const Bitmap &bitmap, int x, int y);
 uint8_t calculateChecksum(const uint8_t *data, size_t len);
+
+#endif // HELPER_H

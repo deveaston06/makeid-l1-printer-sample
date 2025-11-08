@@ -1,20 +1,50 @@
 #include <NimBLEDevice.h>
 #include <credentials.h>
+#include <helper.h>
+#include <image_compressor.h>
+#include <vector>
 
-class PrinterAdvertisedDeviceCallbacks : public NimBLEScanCallbacks {
-  void onResult(NimBLEAdvertisedDevice *advertisedDevice) {
-    Serial.print("Found device: ");
-    Serial.println(advertisedDevice->toString().c_str());
+// ============================================================================
+// BLE INITIALIZATION
+// ============================================================================
 
-    if (PRINTER_MAC[0] != '\0' &&
-        advertisedDevice->getAddress().toString() == std::string(PRINTER_MAC)) {
-      Serial.println("Found target printer, stopping scan...");
-      NimBLEDevice::getScan()->stop();
-    }
-  }
-};
-
+// Initialize BLE, scan for printer, and connect
 void beginBLESniffer();
-void startPrintJob();
-void setBitmapFrame(std::vector<uint8_t> framecontent);
+
+// ============================================================================
+// PRINT JOB MANAGEMENT
+// ============================================================================
+
+// Prepare frames from a bitmap (compress and split into BLE frames)
+bool prepareFramesFromBitmap(const Bitmap &userBitmap);
+
+// Start printing the prepared frames
+bool startPrintJob();
+
+// High-level: Prepare and print in one call
+bool printBitmap(const Bitmap &userBitmap);
+
+// Load example frames (for testing with hardcoded data)
 void setExampleBitmapFrame();
+
+// ============================================================================
+// STATUS QUERIES
+// ============================================================================
+
+// Check if printer is connected via BLE
+bool isPrinterConnected();
+
+// Check if a print job is currently in progress
+bool isPrinting();
+
+// ============================================================================
+// FRAME UTILITIES (Advanced)
+// ============================================================================
+
+// Calculate checksum for a frame
+uint8_t calculateFrameChecksum(const uint8_t *data, size_t len);
+
+// Create a single BLE frame from compressed data chunk
+std::vector<uint8_t> createFrame(const uint8_t *compressedData, size_t offset,
+                                 size_t chunkSize, uint16_t jobId,
+                                 uint16_t framesRemaining, bool isFinal);
