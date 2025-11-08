@@ -2,7 +2,7 @@
 
 ![payload_white_43mm.png|690x303, 50%](https://raw.githubusercontent.com/deveaston06/makeid-l1-printer-sample/refs/heads/main/pictures/payload_white_43mm.png)
 
-bitmap dimension: 128 x 359
+bitmap dimension: 291 x 100
 
 ### frame1 (0x00 0x22 entire payload length in bytes)
 
@@ -48,7 +48,7 @@ bitmap dimension: 128 x 359
 
 ![payload_black_43mm.png|690x238, 50%](https://raw.githubusercontent.com/deveaston06/makeid-l1-printer-sample/refs/heads/main/pictures/payload_black_43mm.png)
 
-bitmap dimension: 307x100
+bitmap dimension: 289 x 100
 
 ### frame1
 
@@ -94,7 +94,7 @@ bitmap dimension: 307x100
 
 ![|690x239, 50%](https://raw.githubusercontent.com/deveaston06/makeid-l1-printer-sample/refs/heads/main/pictures/payload_1_43mm.png)
 
-bitmap dimension: 128x344
+bitmap dimension: 288 x 100
 
 ### frame1
 
@@ -140,7 +140,7 @@ bitmap dimension: 128x344
 
 ![payload_2_44mm.png|689x230, 50%](https://raw.githubusercontent.com/deveaston06/makeid-l1-printer-sample/refs/heads/main/pictures/payload_2_44mm.png)
 
-bitmap dimension: 128 x 352
+bitmap dimension: 299 x 100
 
 ### frame1 (0x02 0x3d length)
 
