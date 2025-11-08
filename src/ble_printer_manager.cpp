@@ -1,8 +1,11 @@
-#include "ble_printer_manager.h"
+#include <ble_printer_manager.h>
 
 const std::vector<uint8_t> frameheader = {0x66, 0x35, 0x00, 0x1b, 0x2f, 0x03,
                                           0x01, 0x00, 0x01, 0x00, 0x01, 0x33,
                                           0x01, 0x55, 0x00, 0x03};
+
+// Printer ID (constant for this printer model)
+const uint8_t PRINTER_ID[8] = {0x1B, 0x2F, 0x03, 0x01, 0x00, 0x01, 0x00, 0x01};
 
 NimBLERemoteService *pPrinterService = nullptr;
 NimBLEClient *pClient = nullptr;
@@ -41,14 +44,6 @@ void setExampleBitmapFrame() {
             0x2f, 0x00, 0xff, 0x3f, 0xff, 0x28, 0x00, 0x00, 0x35, 0x2c,
             0x00, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0xaa};
-}
-
-void setBitmapFrame(
-    std::vector<uint8_t> framecontent) { // TODO: need help with this
-  frame1 = frameheader;
-  const std::vector<uint8_t> frame1content = {0x00, 0x02, 0x00};
-  std::copy(std::begin(frameheader), std::end(frameheader), std::begin(frame1));
-  pushArrayToAnother(frame1content, frame1);
 }
 
 // Notification callback

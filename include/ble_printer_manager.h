@@ -1,9 +1,5 @@
 #include <NimBLEDevice.h>
-#include <array_helper.h>
-
-#ifndef CREDENTIALS
 #include <credentials.h>
-#endif // !MAC_ADDRESS
 
 class PrinterAdvertisedDeviceCallbacks : public NimBLEScanCallbacks {
   void onResult(NimBLEAdvertisedDevice *advertisedDevice) {
