@@ -2,7 +2,6 @@
 
 // Printer constants
 const uint8_t PRINTER_ID[8] = {0x1B, 0x2F, 0x03, 0x01, 0x00, 0x01, 0x00, 0x01};
-const uint16_t DEFAULT_JOB_ID = 0x012B;
 
 // BLE globals
 NimBLERemoteService *pPrinterService = nullptr;
@@ -18,7 +17,6 @@ bool printingInProgress = false;
 // Frame storage for current print job
 std::vector<std::vector<uint8_t>> printFrames;
 int currentFrameIndex = 0;
-uint16_t currentJobId = DEFAULT_JOB_ID;
 
 // ============================================================================
 // FRAME CONSTRUCTION
@@ -33,99 +31,29 @@ uint8_t calculateFrameChecksum(const uint8_t *data, size_t len) {
   return checksum;
 }
 
-// Create a single frame from compressed data chunk
-std::vector<uint8_t> createFrame(const uint8_t *compressedData, size_t offset,
-                                 size_t chunkSize, uint16_t jobId,
-                                 uint8_t framesRemaining, bool isFinal) {
-  std::vector<uint8_t> frame;
-
-  // Magic number
-  frame.push_back(0x66);
-
-  // Frame length (little endian, excludes magic & length bytes)
-  uint16_t len = 16 + chunkSize + 4;
-  frame.push_back(len & 0xFF);
-  frame.push_back((len >> 8) & 0xFF);
-
-  // Printer ID (8 bytes)
-  for (int i = 0; i < 8; i++) {
-    frame.push_back(PRINTER_ID[i]);
-  }
-
-  // Job ID (little endian)
-  frame.push_back(jobId & 0xFF);
-  frame.push_back((jobId >> 8) & 0xFF);
-
-  // Frame magic (0x55 for data frames, 0x2C for final)
-  frame.push_back(isFinal ? 0x2C : 0x55);
-
-  // Frames remaining (little endian)
-  frame.push_back(framesRemaining & 0xFF);
-  frame.push_back((framesRemaining >> 8) & 0xFF);
-
-  // Compressed payload
-  for (size_t i = 0; i < chunkSize; i++) {
-    frame.push_back(compressedData[offset + i]);
-  }
-
-  // Checksum
-  uint8_t checksum = calculateFrameChecksum(frame.data(), frame.size() + 1);
-  frame.push_back(checksum);
-
-  return frame;
-}
-
 // ============================================================================
 // PRINT JOB MANAGEMENT
 // ============================================================================
 
 // Prepare frames from compressed bitmap data
 bool prepareFramesFromBitmap(const Bitmap &userBitmap) {
-  Serial.println("=== Preparing Print Job ===");
-
   // Clear previous frames
   printFrames.clear();
 
-  // Transform to printer format (uses static buffer)
-  Serial.println("Converting to printer format...");
-  transformToPrinterFormatInPlace(userBitmap, printerFormatBuffer);
+  // Use the new Python-style compression
+  auto frames = compressAndGenerateFrames(userBitmap);
 
-  // Compress with LZO
-  Serial.println("Compressing with LZO...");
-  lzo_uint compressedLen;
-  int result = lzo1x_1_compress(printerFormatBuffer.data, BITMAP_SIZE,
-                                compressed, &compressedLen, lzoWorkMem);
-
-  if (result != LZO_E_OK) {
-    Serial.println("LZO compression failed!");
+  if (frames.empty()) {
+    Serial.println("No frames generated!");
     return false;
   }
 
-  Serial.printf("Compressed %d → %d bytes (%.1f%%)\n", BITMAP_SIZE,
-                (int)compressedLen, (compressedLen * 100.0) / BITMAP_SIZE);
-
-  size_t offset = 0;
-
-  while (offset < compressedLen) {
-    size_t remaining = compressedLen - offset;
-    size_t chunkSize =
-        (remaining > MAX_FRAME_PAYLOAD) ? MAX_FRAME_PAYLOAD : remaining;
-    bool isFinal = (offset + chunkSize >= compressedLen);
-    uint8_t framesRemaining =
-        isFinal ? 0 : ((remaining - chunkSize) / MAX_FRAME_PAYLOAD);
-
-    std::vector<uint8_t> frame = createFrame(
-        compressed, offset, chunkSize, currentJobId, framesRemaining, isFinal);
-
-    printFrames.push_back(frame);
-    Serial.printf("Frame %d: %d bytes payload, %d frames remaining\n",
-                  printFrames.size(), (int)chunkSize, framesRemaining);
-
-    offset += chunkSize;
+  // Convert to the existing frame format
+  for (const auto &frame : frames) {
+    printFrames.push_back(frame.data);
   }
 
   Serial.printf("Total frames prepared: %d\n", printFrames.size());
-  currentJobId++; // Increment for next job
 
   return true;
 }

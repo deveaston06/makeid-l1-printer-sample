@@ -15,9 +15,6 @@ void beginBLESniffer();
 // PRINT JOB MANAGEMENT
 // ============================================================================
 
-// Prepare frames from a bitmap (compress and split into BLE frames)
-bool prepareFramesFromBitmap(const Bitmap &userBitmap);
-
 // Start printing the prepared frames
 bool startPrintJob();
 
