@@ -32,21 +32,16 @@ void setup() {
   // drawing from scratch programmatically
   // -------------------------------------
   Serial.println("\n=== Creating Custom Bitmap ===");
-  Bitmap image = createEmptyBitmap();
+  Bitmap testBitmap = createEmptyBitmap();
 
-  // Draw border and diagonals
-  drawDiagonals(image);
-
-  // Add text
-  drawString(image, "42", 150, 40);
+  drawCheckerboard(testBitmap, 10);
 
   Serial.println("Bitmap created");
   Serial.printf("Free heap: %d bytes\n", ESP.getFreeHeap());
 
-  // Print it!
   if (isPrinterConnected()) {
     Serial.println("\n=== Printing Custom Bitmap ===");
-    if (printBitmap(image)) {
+    if (printBitmap(testBitmap)) {
       // Wait for print to complete
       while (isPrinting()) {
         delay(100);

@@ -20,6 +20,10 @@ extern uint8_t lzoWorkMem[LZO1X_1_MEM_COMPRESS];
 extern uint8_t compressed[MAX_COMPRESSED_SIZE];
 extern Bitmap printerFormatBuffer;
 
+void transformToPrinterFormat(const Bitmap &source, Bitmap &dest);
+void transformToColumnMajor(const Bitmap &source, Bitmap &dest);
+void transform16BitSwap(Bitmap &bitmap);
+
 void extractChunkColumns(const Bitmap &printerFormat, Bitmap &chunk,
                          int startCol, int chunkWidth);
 
@@ -28,12 +32,5 @@ std::vector<uint8_t> createBLEFrame(const uint8_t *compressedData,
                                     size_t compressedSize,
                                     uint16_t framesRemaining,
                                     uint8_t chunkWidth);
-
-void transformToPrinterFormatInPlace(const Bitmap &source, Bitmap &dest);
-void transformToColumnMajorInPlace(const Bitmap &source, Bitmap &dest);
-void transform16BitSwapInPlace(Bitmap &bitmap);
-void transformInvertBitsInPlace(Bitmap &bitmap);
-
-bool testCompression(const Bitmap &userBitmap);
 
 #endif // !IMAGE_COMPRESSOR_H

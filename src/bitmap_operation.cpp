@@ -1,70 +1,24 @@
 #include <bitmap_operation.h>
 
 // ============================================================================
-// Convert bitmap data into printer formet operations
+// BIT REPRESENTATION:
+// - In memory: 0 = white, 1 = black (matches thermal printer)
+// - Pixel packing: MSB first (bit 7 = first pixel, bit 0 = last pixel)
+// - Coordinates: (0,0) = top-left, (383,95) = bottom-right
 // ============================================================================
-
-// Transform: Column-major conversion (allocates new bitmap)
-Bitmap transformToColumnMajor(const Bitmap &bitmap) {
-  Bitmap result = createEmptyBitmap();
-
-  // Convert row-major to column-major (bottom-to-top)
-  for (int x = 0; x < IMAGE_WIDTH; x++) {
-    for (int y = 0; y < IMAGE_HEIGHT; y++) {
-      if (isPixelBlack(bitmap, x, y)) {
-        const int colIdx = x * BYTES_PER_COLUMN + (IMAGE_HEIGHT - 1 - y) / 8;
-        const int bitPos = (IMAGE_HEIGHT - 1 - y) % 8;
-        result.data[colIdx] |= (1 << bitPos);
-      }
-    }
-  }
-
-  return result;
-}
-
-// Transform: 16-bit word swap (allocates new bitmap)
-Bitmap transform16BitSwap(const Bitmap &bitmap) {
-  Bitmap result = bitmap;
-
-  for (int i = 0; i < BITMAP_SIZE; i += 2) {
-    const uint8_t temp = result.data[i];
-    result.data[i] = result.data[i + 1];
-    result.data[i + 1] = temp;
-  }
-
-  return result;
-}
-
-// Transform: Bit inversion (allocates new bitmap)
-Bitmap transformInvertBits(const Bitmap &bitmap) {
-  Bitmap result = bitmap;
-
-  for (int i = 0; i < BITMAP_SIZE; i++) {
-    result.data[i] ^= 0xFF;
-  }
-
-  return result;
-}
-
-// Complete printer format transformation pipeline
-// This one needs to allocate because it's a complex transformation
-Bitmap transformToPrinterFormat(const Bitmap &bitmap) {
-  return transformInvertBits(
-      transform16BitSwap(transformToColumnMajor(bitmap)));
-}
 
 // ============================================================================
 // BITMAP CREATION (Returns new bitmap)
 // ============================================================================
 
-// Create empty bitmap
+// Create empty bitmap (all white - 0x00)
 Bitmap createEmptyBitmap() {
   Bitmap bitmap;
   clearBuffer(bitmap.data, BITMAP_SIZE);
   return bitmap;
 }
 
-// Create filled bitmap
+// Create filled bitmap (0xFF = black, 0x00 = white)
 Bitmap createFilledBitmap(bool black) {
   Bitmap bitmap;
   const uint8_t fillValue = black ? 0xFF : 0x00;
@@ -78,7 +32,6 @@ Bitmap createFilledBitmap(bool black) {
 // IN-PLACE OPERATIONS (Modify bitmap directly, no copies)
 // ============================================================================
 
-// Set single pixel (modifies in place)
 void setPixel(Bitmap &bitmap, int x, int y, bool black) {
   if (x < 0 || x >= IMAGE_WIDTH || y < 0 || y >= IMAGE_HEIGHT) {
     return;
@@ -99,7 +52,6 @@ void setPixel(Bitmap &bitmap, int x, int y, bool black) {
 // Clear pixel (helper for convenience)
 void clearPixel(Bitmap &bitmap, int x, int y) { setPixel(bitmap, x, y, false); }
 
-// Fill entire bitmap with color (modifies in place)
 void fillBitmap(Bitmap &bitmap, bool black) {
   const uint8_t fillValue = black ? 0xFF : 0x00;
   for (size_t i = 0; i < BITMAP_SIZE; i++) {
@@ -122,43 +74,48 @@ void mapPixels(Bitmap &bitmap, int x1, int y1, int x2, int y2,
   }
 }
 
-// Draw border (modifies in place)
 void drawBorder(Bitmap &bitmap, int thickness) {
-  for (int y = 0; y < IMAGE_HEIGHT; y++) {
+  // Use setPixel for consistency
+  // Top border
+  for (int y = 0; y < thickness; y++) {
     for (int x = 0; x < IMAGE_WIDTH; x++) {
-      if (isInBorder(x, y, thickness)) {
-        const int idx = pixelToIndex(x, y);
-        const int byteIdx = indexToByte(idx);
-        const int bitPos = indexToBit(idx);
-        bitmap.data[byteIdx] |= bitMask(bitPos);
-      }
+      setPixel(bitmap, x, y, true);
+    }
+  }
+
+  // Bottom border
+  for (int y = IMAGE_HEIGHT - thickness; y < IMAGE_HEIGHT; y++) {
+    for (int x = 0; x < IMAGE_WIDTH; x++) {
+      setPixel(bitmap, x, y, true);
+    }
+  }
+
+  // Left border
+  for (int y = thickness; y < IMAGE_HEIGHT - thickness; y++) {
+    for (int x = 0; x < thickness; x++) {
+      setPixel(bitmap, x, y, true);
+    }
+  }
+
+  // Right border
+  for (int y = thickness; y < IMAGE_HEIGHT - thickness; y++) {
+    for (int x = IMAGE_WIDTH - thickness; x < IMAGE_WIDTH; x++) {
+      setPixel(bitmap, x, y, true);
     }
   }
 }
 
-// Helper for border detection
-bool isInBorder(int x, int y, int thickness) {
-  return x < thickness || x >= IMAGE_WIDTH - thickness || y < thickness ||
-         y >= IMAGE_HEIGHT - thickness;
-}
-
-// Draw diagonal lines (modifies in place)
 void drawDiagonals(Bitmap &bitmap) {
   const int minDim = (IMAGE_WIDTH < IMAGE_HEIGHT) ? IMAGE_WIDTH : IMAGE_HEIGHT;
 
   for (int i = 0; i < minDim; i++) {
     // Main diagonal (top-left to bottom-right)
-    const int idx1 = pixelToIndex(i, i);
-    bitmap.data[indexToByte(idx1)] |= bitMask(indexToBit(idx1));
+    setPixel(bitmap, i, i, true);
 
     // Anti-diagonal (top-right to bottom-left)
-    const int idx2 = pixelToIndex(IMAGE_WIDTH - 1 - i, i);
-    bitmap.data[indexToByte(idx2)] |= bitMask(indexToBit(idx2));
+    setPixel(bitmap, IMAGE_WIDTH - 1 - i, i, true);
   }
 }
-
-// Helper for diagonal detection
-bool isOnDiagonal(int x, int y) { return x == y || x == (IMAGE_WIDTH - 1 - y); }
 
 // Draw character at position (modifies in place)
 void drawChar(Bitmap &bitmap, char c, int startX, int startY) {
@@ -195,7 +152,6 @@ void drawChar(Bitmap &bitmap, char c, int startX, int startY) {
   }
 }
 
-// Draw string (modifies in place)
 void drawString(Bitmap &bitmap, const char *str, int startX, int startY) {
   int x = startX;
   while (*str) {
@@ -205,7 +161,6 @@ void drawString(Bitmap &bitmap, const char *str, int startX, int startY) {
   }
 }
 
-// Draw rectangle outline (modifies in place)
 void drawRect(Bitmap &bitmap, int x1, int y1, int x2, int y2) {
   // Ensure coordinates are in order
   if (x1 > x2) {
@@ -232,7 +187,6 @@ void drawRect(Bitmap &bitmap, int x1, int y1, int x2, int y2) {
   }
 }
 
-// Draw filled rectangle (modifies in place)
 void fillRect(Bitmap &bitmap, int x1, int y1, int x2, int y2) {
   // Ensure coordinates are in order
   if (x1 > x2) {
@@ -253,7 +207,6 @@ void fillRect(Bitmap &bitmap, int x1, int y1, int x2, int y2) {
   }
 }
 
-// Draw line (Bresenham's algorithm, modifies in place)
 void drawLine(Bitmap &bitmap, int x0, int y0, int x1, int y1) {
   int dx = abs(x1 - x0);
   int dy = abs(y1 - y0);
@@ -279,7 +232,6 @@ void drawLine(Bitmap &bitmap, int x0, int y0, int x1, int y1) {
   }
 }
 
-// Draw circle (Midpoint circle algorithm, modifies in place)
 void drawCircle(Bitmap &bitmap, int centerX, int centerY, int radius) {
   int x = radius;
   int y = 0;
@@ -306,7 +258,6 @@ void drawCircle(Bitmap &bitmap, int centerX, int centerY, int radius) {
   }
 }
 
-// Fill circle (modifies in place)
 void fillCircle(Bitmap &bitmap, int centerX, int centerY, int radius) {
   for (int y = -radius; y <= radius; y++) {
     for (int x = -radius; x <= radius; x++) {
@@ -317,19 +268,16 @@ void fillCircle(Bitmap &bitmap, int centerX, int centerY, int radius) {
   }
 }
 
-// Invert bitmap colors (modifies in place)
 void invertBitmap(Bitmap &bitmap) {
   for (int i = 0; i < BITMAP_SIZE; i++) {
     bitmap.data[i] ^= 0xFF;
   }
 }
 
-// Copy one bitmap to another
 void copyBitmap(Bitmap &dest, const Bitmap &src) {
   copyBuffer(dest.data, src.data, BITMAP_SIZE);
 }
 
-// Draw grid pattern (modifies in place)
 void drawGrid(Bitmap &bitmap, int spacing) {
   // Vertical lines
   for (int x = 0; x < IMAGE_WIDTH; x += spacing) {
@@ -346,7 +294,6 @@ void drawGrid(Bitmap &bitmap, int spacing) {
   }
 }
 
-// Draw checkerboard pattern (modifies in place)
 void drawCheckerboard(Bitmap &bitmap, int squareSize) {
   for (int y = 0; y < IMAGE_HEIGHT; y++) {
     for (int x = 0; x < IMAGE_WIDTH; x++) {
@@ -360,7 +307,6 @@ void drawCheckerboard(Bitmap &bitmap, int squareSize) {
 // COMPOSE FUNCTION (Modified to work with in-place operations)
 // ============================================================================
 
-// Apply multiple operations in sequence (all modify bitmap in place)
 void compose(Bitmap &bitmap, void (*f1)(Bitmap &), void (*f2)(Bitmap &),
              void (*f3)(Bitmap &)) {
   if (f1)
