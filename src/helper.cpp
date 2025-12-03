@@ -42,3 +42,11 @@ uint8_t calculateChecksum(const uint8_t *data, size_t len) {
   }
   return checksum;
 }
+
+bool isContinuationFrame(const std::vector<uint8_t> &frame) {
+  return !frame.empty() && frame[0] != 0x66;
+}
+
+bool isRegularFrame(const std::vector<uint8_t> &frame) {
+  return !frame.empty() && frame[0] == 0x66;
+}

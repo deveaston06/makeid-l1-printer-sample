@@ -2,6 +2,7 @@
 #define HELPER_H
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #define IMAGE_WIDTH 291
 #define IMAGE_HEIGHT 100
@@ -28,5 +29,7 @@ int indexToBit(int idx);
 uint8_t bitMask(int bitPos);
 bool isPixelBlack(const Bitmap &bitmap, int x, int y);
 uint8_t calculateChecksum(const uint8_t *data, size_t len);
+bool isContinuationFrame(const std::vector<uint8_t> &frame);
+bool isRegularFrame(const std::vector<uint8_t> &frame);
 
 #endif // HELPER_H

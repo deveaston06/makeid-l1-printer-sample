@@ -15,6 +15,8 @@ void beginBLESniffer();
 // PRINT JOB MANAGEMENT
 // ============================================================================
 
+void sendFrameBatch(int startIndex);
+
 // Start printing the prepared frames
 bool startPrintJob();
 
