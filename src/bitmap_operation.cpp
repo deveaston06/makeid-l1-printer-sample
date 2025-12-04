@@ -11,6 +11,14 @@
 // BITMAP CREATION (Returns new bitmap)
 // ============================================================================
 
+Bitmap *createEmptyBitmapPtr() {
+  Bitmap *bmp = new (std::nothrow) Bitmap();
+  if (!bmp)
+    return nullptr;
+  clearBuffer(bmp->data, BITMAP_SIZE);
+  return bmp;
+}
+
 // Create empty bitmap (all white - 0x00)
 Bitmap createEmptyBitmap() {
   Bitmap bitmap;
@@ -41,6 +49,13 @@ void setPixel(Bitmap &bitmap, int x, int y, bool black) {
   const int byteIdx = indexToByte(idx);
   const int bitPos = indexToBit(idx);
   const uint8_t mask = bitMask(bitPos);
+
+  // Defensive: ensure we don't write beyond allocated buffer
+  if (!isValidByteIndex(byteIdx)) {
+    // In debug builds assert to catch logic errors; in production just return
+    assert(false && "byteIdx out of range in setPixel");
+    return;
+  }
 
   if (black) {
     bitmap.data[byteIdx] |= mask;

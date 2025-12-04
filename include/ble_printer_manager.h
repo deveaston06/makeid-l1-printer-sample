@@ -23,9 +23,6 @@ bool startPrintJob();
 // High-level: Prepare and print in one call
 bool printBitmap(const Bitmap &userBitmap);
 
-// Load example frames (for testing with hardcoded data)
-void setExampleBitmapFrame();
-
 // ============================================================================
 // STATUS QUERIES
 // ============================================================================
