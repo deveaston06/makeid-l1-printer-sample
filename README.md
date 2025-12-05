@@ -4,9 +4,9 @@ This project aims to reverse engineer the Bluetooth LE (BLE) communication proto
 
 ## Gratitution for Challenges Solved (Done)
 
-The central problem was that the printer uses compression that I didn't know and/or encoding format for the bitmap data.
+The central problem was that the printer uses compression that I didn't know and/or encoding format for the bitmap data. Now, it is partially functional thanks to the contributors below.
 
-### [Maximilian Gerhardt](https://github.com/maxgerhardt) from PlatformIO
+1. [Maximilian Gerhardt](https://github.com/maxgerhardt) from PlatformIO
 
 - Identified the correct algorithm (LZO)
 - Deciphered the printer payload formatting/encoding
@@ -15,11 +15,32 @@ The central problem was that the printer uses compression that I didn't know and
 
 ## Side Challenge(s)
 
-- Figure out how the 8 unknown constant bytes does
+However, there are still stuff yet to uncover, and if you're interested to develop this sample repository please feel free to fork this repository, also here are some ideas if my code doesn't work for your printer:
+
+1. Figure out what does the 8 unknown constant bytes sent to printer contain
+
+- Could be print density (Since mobile app allows setting the print density from 10 to 20, so far I only set to 15 for the Wireshark frame capture)
+- Could be padding setting for die-cut/continuous label/tape (Since the mobile app receiving the 0x0abf2 notification from the printer could be sending the correct paddings corresponding to the tape detected inside the printer)
+
+2. Figure out what 0xabf2 notification bytes received from the printer contain
+
+- Example bytes include
+
+```hex
+Notification [0xabf2] : 23 23 01 01 66 25 00 10 00 36 18 0F 00 00 4C 31 43 00 00 01 00 00 A0 0F 4C 43 2D 31 36 59 36 00 00 00 00 00 00 00 43 00 A3
+```
+
+- Could be printer status: `printer_head_sensor`, `printer_tape_dispenser_sensor`, `printer_tape_margin settings`, `printer_tape_type` or `printer_battery_percentage`.
+
+3. Demystify more stuff such as
+
+- whether if byte at the end of header `00` is constant or is part of number of frame in little-endian format
+
+- whether if 3rd from final byte of header `00` is part of number of frames or is part of chunk width.
 
 ## Printer Details
 
-Beware that I bought the printer from [Malaysian Market (Shopee)](https://shopee.com.my/Makeid-L1-C-Label-Printer-Machine-with-Tape-Portable-Bluetooth-Thermal-Sticker-Maker-for-Home-Office-School(Waterproof-Oilproof-09mm-12mm-16mm-Width-Tape)-i.1560984266.44004392560?extraParams=%7B%22display_model_id%22%3A280372768507%2C%22model_selection_logic%22%3A3%7D&sp_atk=42cb61ec-ceae-44da-8e71-8a0947f60483&xptdk=42cb61ec-ceae-44da-8e71-8a0947f60483) and don't guarantee that it works on the same model from western country. This is because I watched a reverse engineer video on the same model but it turned out to have different firmware (uses BLE instead of classic bluetooth)
+Beware that I bought the printer from [Malaysian Market (Shopee)](https://shopee.com.my/Makeid-L1-C-Label-Printer-Machine-with-Tape-Portable-Bluetooth-Thermal-Sticker-Maker-for-Home-Office-School(Waterproof-Oilproof-09mm-12mm-16mm-Width-Tape)-i.1560984266.44004392560?extraParams=%7B%22display_model_id%22%3A280372768507%2C%22model_selection_logic%22%3A3%7D&sp_atk=42cb61ec-ceae-44da-8e71-8a0947f60483&xptdk=42cb61ec-ceae-44da-8e71-8a0947f60483) and don't guarantee that it works on the same model from western country. This is because I watched a reverse engineer video on the same model but mine turns out to have different firmware (uses BLE instead of classic bluetooth)
 
 *   **Model:** MakeID L1 (ID seen on advertisement: `L1C25E01553`)
 *   **BLE Address:** `58:8C:81:72:AB:0A`
@@ -42,7 +63,7 @@ The official Android application sends an image to the printer in a series of ch
 
 This flow is critical. Sending frames too quickly without waiting for the ACK results in a failed print, where only the first chunk is printed.
 
-### Frame Structure
+### Out-bound Frame Structure
 
 Each data frame sent to the printer has a consistent structure. All multi-byte values are Little Endian.
 
@@ -68,30 +89,8 @@ Each data frame sent to the printer has a consistent structure. All multi-byte v
 | Compressed Payload    | `02 00 ... 11 00 00`               | Var.   | Bitmap payload data after transformation to printer format and being LZO compressed |
 | Checksum              | `63`                               | 1 byte | A checksum calculated over the entire frame (excluding the checksum byte itself). |
 
-### Checksum Calculation
 
-The checksum is calculated by subtracting each byte of the frame (except the last one) from a running total, with overflow. The algorithm was reconstructed from the reference APK.
-
-```python
-def getCheckNum(bArr):
-    """
-    Calculates the checksum for a given frame byte array.
-    The input array should include a placeholder byte for the checksum.
-    """
-    b = 0
-    # Iterate over all bytes except the last one (the checksum placeholder)
-    for i in range(len(bArr) - 1):
-        byte_val = bArr[i] & 0xFF
-        b = (b - byte_val) & 0xFF
-    return b
-```
-## Repository Contents
-
-*   `/btsnoop_hci_logs`: Raw BLE traffic captures from five different print jobs, captured using Android's HCI snoop log feature and Wireshark.
-*   `/pictures`: The original, uncompressed PNG images that were sent to the printer during the capture sessions.
-*   `/src`: ESP32 source code (using PlatformIO and NimBLE) for connecting to the printer and replaying the captured, hardcoded data frames. This code successfully prints when respecting the ACK mechanism.
-*   `/reference_apk`: The original MakeID-Life Android application package (`.xapk`) used for generating the print jobs.
-*   `/include`: Header files for the ESP32 project **(please change MAC_ADDRESS to match yours)**.
+### In-bound Frame structure
 
 ## Development Environment
 
